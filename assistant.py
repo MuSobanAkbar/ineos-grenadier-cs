@@ -283,5 +283,11 @@ if __name__ == "__main__":
     collection = build_index(os.getenv("FILE_PATH"))
 
     print("Welcome to Ineos, let's find you a car.")
-    gradio.ChatInterface(respond).launch()      
+    gradio.ChatInterface(
+    respond, 
+    title="Ineos Salesbot",
+    description="Let's build your car.",
+                          # soft, glass, monochrome
+    examples=["I want a 5-seat off-roader"],
+    ).launch(theme="soft")      
 
