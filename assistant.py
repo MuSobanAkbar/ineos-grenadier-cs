@@ -41,34 +41,7 @@ def build_index(pdf_path):
     return collection
 
 
-def ask(collection, question):
-    
-    results = collection.query(query_texts=[question], n_results=3)
-    retrieved = results["documents"][0]
 
-    
-    context = ""
-    for i, chunk in enumerate(retrieved, start=1):
-        context += f"[Source {i}]\n{chunk}\n\n"
-
-    system_prompt = (
-        "You answer questions using ONLY the provided sources. "
-        "Cite the source you used like [Source 1] at the end. "
-        "Answers must be TO THE POINT and concise."
-        "If the answer is not in the sources, say 'I don't know based on the document.' "
-        "Do not use outside knowledge."
-    )
-    user_prompt = f"Sources:\n{context}\nQuestion: {question}"
-
-    response = groq_client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        temperature=0.2,  
-    )
-    return response.choices[0].message.content
 
 
 
