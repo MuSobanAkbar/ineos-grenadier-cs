@@ -1,38 +1,37 @@
-import os 
+import os
+import json  
 from dotenv import load_dotenv
 from groq import Groq
-import chromadb 
-from langchain_community.document_loaders import PyPDFLoader            
-from langchain_text_splitters import RecursiveCharacterTextSplitter 
+import chromadb
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 load_dotenv()
 groq_client = Groq()
 
-
-
-
-
-#the temp will stay 0.0-0.2 for accuracy 
 MODEL_NAME = "openai/gpt-oss-120b"
 MAX_TOKEN_LIMIT = 1024
-TEMP=0.3
+TEMP = 0.3
 
 
 def build_index(pdf_path):
+    
     pages = PyPDFLoader(pdf_path).load()
 
+    
     chunks = RecursiveCharacterTextSplitter(
-        chunk_size = 1000,
+        chunk_size=1000,
         chunk_overlap=200,
     ).split_documents(pages)
-    
+
+
     client = chromadb.PersistentClient(path="./chroma_db")
     try:
-        client.delete_collection("pdf")
+        client.delete_collection("pdf")  
     except Exception:
         pass
     collection = client.get_or_create_collection("pdf")
-    
+
     collection.add(
         documents=[c.page_content for c in chunks],
         ids=[f"chunk_{i}" for i in range(len(chunks))],
@@ -40,18 +39,18 @@ def build_index(pdf_path):
     )
     print(f"Indexed {len(chunks)} chunks.")
     return collection
-    
+
+
 def ask(collection, question):
+    
     results = collection.query(query_texts=[question], n_results=3)
     retrieved = results["documents"][0]
 
-
-    context = ""
-
     
+    context = ""
     for i, chunk in enumerate(retrieved, start=1):
         context += f"[Source {i}]\n{chunk}\n\n"
-    
+
     system_prompt = (
         "You answer questions using ONLY the provided sources. "
         "Cite the source you used like [Source 1] at the end. "
@@ -60,26 +59,197 @@ def ask(collection, question):
         "Do not use outside knowledge."
     )
     user_prompt = f"Sources:\n{context}\nQuestion: {question}"
+
     response = groq_client.chat.completions.create(
-        model="openai/gpt-oss-120b",
+        model=MODEL_NAME,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        temperature=0.0,   
+        temperature=0.2,  
     )
     return response.choices[0].message.content
 
+
+
+slots = {
+    "customer_intent": None,
+    "driving_environment": None,
+    "body_style": None,
+    "engine_code": None,
+    "trim_edition": None,
+    "base_price": None,
+    "paint_code": None,
+    "contrast_options": [],
+    "wheel_tyre_codes": [],
+    "interior_codes": [],
+    "pack_codes": [],
+    "hardware_codes": [],
+    "accessories_added": [],
+    "total_options_value": None,
+    "final_otr_price": None
+}
+
+
+questions = {
+    "customer_intent": "Will you be using the vehicle primarily for commercial/utility purposes or as a personal passenger vehicle?",
+    "driving_environment": "What kind of terrain do you anticipate driving most? (e.g., daily road/highway driving or challenging off-road trails?)",
+    "body_style": "Which body style fits your needs? (Utility Wagon 2-Seat/5-Seat, Station Wagon 5-Seat, or Quartermaster Pick-up 5-Seat)",
+    "engine_code": "Which BMW 3.0L straight-six engine do you prefer? (Turbo Petrol [GEB] or Twin-Turbo Diesel [GEC])",
+    "trim_edition": "Would you prefer the base Standard configuration, the extreme off-road Trialmaster Edition, or the comfort-focused Fieldmaster Edition?",
+    "paint_code": "What exterior body colour would you like? We have Solid options (e.g., Scottish White, Magic Mushroom) and Metallic choices (e.g., Sterling Silver, Donny Grey).",
+    "contrast_options": "Would you like a contrast painted roof (Scottish White/Inky Black) or a contrast powder-coated ladder frame (HALO Red/Rhino Grey)? You can choose multiple or say 'None'.",
+    "wheel_tyre_codes": "Which wheel and tyre setup would you like? Choose a size (17\" or 18\"), style (Steel or Alloy), and tyre type (Standard Bridgestone or BFGoodrich KO2 All-Terrain).",
+    "interior_codes": "Let's configure the cabin. What interior trim (Utility or Black/Grey Leather), seat heating, or driver pack upgrades do you want to add?",
+    "pack_codes": "Would you like to add any option groups, like the Rough Pack (front/rear diff locks, KO2 tyres) or the Smooth Pack (rear-view camera, park assist, heated mirrors)?",
+    "hardware_codes": "Do you want to add built-in utility features? (e.g., Integrated 5.5-Tonne Winch, Towball options, Raised Air Intake, or High Load Auxiliary Switch Panel)",
+    "accessories_added": "Are there any bolt-on lifestyle, cargo, or recovery accessories you want to add? Type 'Done' when finished."
+}
+
+
+tools = [
+    {
+        "type": "function",
+        "function": {
+            "name": "save_preferences",
+            "description": "Save the customer's INEOS configuration preferences and selected options.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "customer_intent": {
+                        "type": "string",
+                        "enum": ["commercial", "passenger"],
+                        "description": "Whether the vehicle is for commercial/utility or personal/passenger use."
+                    },
+                    "driving_environment": {
+                        "type": "string",
+                        "description": "The primary driving terrain, e.g., highway, heavy off-road."
+                    },
+                    "body_style": {
+                        "type": "string",
+                        "enum": [
+                            "Utility Wagon 2-Seat", 
+                            "Utility Wagon 5-Seat", 
+                            "Station Wagon 5-Seat", 
+                            "Quartermaster Pick-up 5-Seat"
+                        ],
+                        "description": "The selected base vehicle body style."
+                    },
+                    "engine_code": {
+                        "type": "string",
+                        "enum": ["GEB", "GEC"],
+                        "description": "GEB for Turbo Petrol, GEC for Twin-Turbo Diesel."
+                    },
+                    "trim_edition": {
+                        "type": "string",
+                        "enum": ["Standard", "Trialmaster", "Fieldmaster"],
+                        "description": "The chosen trim level."
+                    },
+                    "paint_code": {
+                        "type": "string",
+                        "description": "The RRP code for the chosen exterior body colour."
+                    },
+                    "contrast_options": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Array of RRP codes for contrast roof and ladder frame."
+                    },
+                    "wheel_tyre_codes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Array of RRP codes for chosen wheels, tyres, and locking nuts."
+                    },
+                    "interior_codes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Array of RRP codes for interior trim, seating, and flooring."
+                    },
+                    "pack_codes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Array of RRP codes for added option packs (e.g., Rough Pack, Smooth Pack)."
+                    },
+                    "hardware_codes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Array of RRP codes for built-in utility hardware (winches, towing, power)."
+                    },
+                    "accessories_added": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "code": {"type": "string"},
+                                "name": {"type": "string"},
+                                "price": {"type": "number"}
+                            }
+                        },
+                        "description": "Array of added accessories with their codes, names, and prices."
+                    },
+                    "base_price": {
+                        "type": "number",
+                        "description": "The base price of the chosen model and trim in GBP."
+                    },
+                    "total_options_value": {
+                        "type": "number",
+                        "description": "The calculated total cost of all added options and accessories in GBP."
+                    },
+                    "final_otr_price": {
+                        "type": "number",
+                        "description": "The final on-the-road price in GBP."
+                    }
+                }
+            }
+        }
+    }
+]
+
+
+def extract(user_message):
+    resp = groq_client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content":
+                "Call save_preferences with any car preferences the user states also use implications to tell what they're trying to say. "
+                },
+            {"role": "user", "content": user_message},
+        ],
+        tools=tools,
+        tool_choice="auto", 
+        temperature=0.0,
+    )
+
+    msg = resp.choices[0].message
+
+    if msg.tool_calls:
+        boxes = json.loads(msg.tool_calls[0].function.arguments)
+        for key, value in boxes.items():
+            if key in slots and value:
+                slots[key] = value
+
+
+
+
 if __name__ == "__main__":
-#pdf path
-    collection = build_index("")
-    while True:
-        q = input("You (type quit to end): ")
-        if q.lower() in ("quit"):
-            break
-        if not q:
-            continue
-        print("\n" + ask(collection, q))
+    collection = build_index(os.getenv("FILE_PATH"))
+
+    print("Welcome to Ineos, let's find you a car.")
+
+    while None in slots.values():
+
+        field = next(k for k, v in slots.items() if v is None)
+
+        user_msg = input(questions[field] + "\n> ")
 
 
+        extract(user_msg)
 
+        print("Checklist so far:", slots, "\n")
+
+
+    print("Great, all set! Searching the brochure...\n")
+    query = (
+        f"Recommend a car with body size {slots['body_size']}, "
+        f"{slots['engine_type']} engine, budget {slots['budget']}."
+    )
+    print(ask(collection, query))
