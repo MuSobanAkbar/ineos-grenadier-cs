@@ -7,10 +7,11 @@ groq_client = Groq()
 
 
 #the temp will stay 0.0-0.2 for accuracy 
-MODEL_NAME = "openai/gpt/120b"
+MODEL_NAME = "openai/gpt-oss-120b"
+MAX_TOKEN_LIMIT = 1024
 TEMP=0.3
 
-MAX_TOKEN_LIMIT = 1024
+
 
 messages = [
     {
@@ -22,7 +23,7 @@ while True:
     user_input = input("You: ")
     messages.append({"role":"user", "content": user_input})
     try:
-        message = client.chat.completions.create(
+        message = groq_client.chat.completions.create(
             model = MODEL_NAME,
             max_completion_tokens = MAX_TOKEN_LIMIT,
             messages = messages,
