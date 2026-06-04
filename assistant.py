@@ -1,5 +1,6 @@
 import os
-import json  
+import json
+import gradio
 from dotenv import load_dotenv
 from groq import Groq
 import chromadb
@@ -13,6 +14,15 @@ MODEL_NAME = "openai/gpt-oss-120b"
 MAX_TOKEN_LIMIT = 1024
 TEMP = 0.3
 
+def respond(message, history):
+    extract(message)                    
+
+    for field in questions:             
+        if slots[field] is None:
+            return questions[field]     
+
+    calculate_price(slots)              
+    return "All done, here's your final price."
 
 def build_index(pdf_path):
     
@@ -78,12 +88,12 @@ slots = {
     "trim_edition": None,
     "base_price": None,
     "paint_code": None,
-    "contrast_options": [],
-    "wheel_tyre_codes": [],
-    "interior_codes": [],
-    "pack_codes": [],
-    "hardware_codes": [],
-    "accessories_added": [],
+    "contrast_options": None,
+    "wheel_tyre_codes": None,
+    "interior_codes": None,
+    "pack_codes": None,
+    "hardware_codes": None,
+    "accessories_added": None,
     "total_options_value": None,
     "final_otr_price": None
 }
@@ -140,7 +150,7 @@ tools = [
                     },
                     "trim_edition": {
                         "type": "string",
-                        "enum": ["Standard", "Trialmaster", "Fieldmaster"],
+                        "enum": ["Standard", "Offroad Trialmaster", "Comfort Fieldmaster"],
                         "description": "The chosen trim level."
                     },
                     "paint_code": {
@@ -209,7 +219,11 @@ def extract(user_message):
             model=MODEL_NAME,
             messages=[
                 {"role": "system", "content":
-                    "Call save_preferences with anything they write, and try linking car preferences the user states also use implications to tell what they're trying to say. "
+                    "Call save_preferences with the user's car preferences. "
+                    "CRITICAL RULE: If the user says 'no', 'none', 'skip', or 'nothing', YOU MUST RECORD IT. "
+                    "If they skip an array question (like accessories or packs), return an empty array []. "
+                    "If they skip a string question, return the word 'None'. "
+                    "Do NOT leave the key out if they explicitly decline, otherwise the system will ask them again forever."
                 },
                 {"role": "user", "content": user_message},
             ],
@@ -228,29 +242,46 @@ def extract(user_message):
     except Exception as e:
         print("Clarify?")
 
+def calculate_price(filled_slots):
 
+    base = 60000 
+    body = filled_slots.get("body_style", "")
+    trim = filled_slots.get("trim_edition", "")
+    
+    for variant_name, data in BASE_VARIANTS.items():
+        if body and trim:
+            if body.split(" ")[0] in variant_name and trim in variant_name:
+                base = data["base_price"]
+                break
+
+    
+    options_total = 0
+    if filled_slots.get("accessories_added"):
+        for item in filled_slots["accessories_added"]:
+            options_total += item.get("price", 0)
+
+
+    filled_slots["base_price"] = base
+    filled_slots["total_options_value"] = options_total
+    filled_slots["final_otr_price"] = base + options_total
+
+    
+    print("\n" + "="*50)
+    print("FINAL INEOS CONFIGURATION RECEIPT")
+    print("="*50)
+    print(f"Body Style & Trim:  {body} ({trim})")
+    print(f"Base Vehicle Price: £{base:,.2f}")
+    print(f"Added Accessories:  £{options_total:,.2f}")
+    print("-" * 50)
+    print(f"FINAL TOTAL PRICE:  £{filled_slots['final_otr_price']:,.2f}")
+    print("="*50 + "\n")
+    
+    return filled_slots
 
 
 if __name__ == "__main__":
     collection = build_index(os.getenv("FILE_PATH"))
 
     print("Welcome to Ineos, let's find you a car.")
+    gradio.ChatInterface(respond).launch()      
 
-    while None in slots.values():
-
-        field = next(k for k, v in slots.items() if v is None)
-
-        user_msg = input(questions[field] + "\n> ")
-
-
-        extract(user_msg)
-
-        print("Checklist so far:", slots, "\n")
-
-
-    print("Great, all set! Searching the brochure...\n")
-    query = (
-        f"Recommend a car with body size {slots['body_size']}, "
-        f"{slots['engine_type']} engine, budget {slots['budget']}."
-    )
-    print(ask(collection, query))
