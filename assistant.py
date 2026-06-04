@@ -40,7 +40,32 @@ def build_index(pdf_path):
     print(f"Indexed {len(chunks)} chunks.")
     return collection
 
+BASE_VARIANTS = {
+    "Utility Wagon 2-Seat":                  {"col_idx": 0, "base_price": 64500, "category": "Wagon"},
+    "Utility Wagon 5-Seat":                  {"col_idx": 1, "base_price": 65000, "category": "Wagon"},
+    "Utility Wagon Trialmaster (5-Seat)":    {"col_idx": 2, "base_price": 72500, "category": "Wagon"},
+    "Utility Wagon Fieldmaster (5-Seat)":    {"col_idx": 3, "base_price": 72500, "category": "Wagon"},
+    "Station Wagon Trialmaster (5-Seat)":    {"col_idx": 4, "base_price": 76000, "category": "Wagon"},
+    "Station Wagon Fieldmaster (5-Seat)":    {"col_idx": 5, "base_price": 76000, "category": "Wagon"},
+    "Quartermaster (5-Seat)":                {"col_idx": 6, "base_price": 66215, "category": "Quartermaster"},
+    "Quartermaster Trialmaster (5-Seat)":    {"col_idx": 7, "base_price": 73715, "category": "Quartermaster"},
+    "Quartermaster Fieldmaster (5-Seat)":    {"col_idx": 8, "base_price": 73715, "category": "Quartermaster"},
+}
 
+FACTORY_OPTIONS = {
+    "PPP": {"name": "Rough Pack", "prices": [2370, 2370, "Standard", 2370, "Standard", 2370, 2370, "Standard", 2370]},
+    "PPZ": {"name": "Smooth Pack", "prices": [1500, 1500, "Standard", "Standard", "Standard", "Standard", 1500, "Standard", "Standard"]},
+    "FPM": {"name": "Donny Grey Metallic Paint", "prices": [970, 970, 970, 970, 970, 970, 925, 925, 925]},
+    "WBS": {"name": "18\" Alloy Wheels", "prices": [1690, 1690, 1690, "Standard", 1690, "Standard", 1690, 1690, "Standard"]},
+    "ISL": {"name": "Leather Trim - Black", "prices": [1835, 1835, 1835, "Standard", 1835, "Standard", 1835, 1835, "Standard"]},
+    "VED": {"name": "Integrated Heavy Duty Winch", "prices": [3515, 3515, 3515, 3515, 3515, 3515, 3515, 3515, 3515]}
+}
+
+ACCESSORIES = {
+    "VDJ": {"name": "Rock Sliders", "Wagon": 883, "Quartermaster": 908},
+    "VCI": {"name": "Tailgate Table", "Wagon": 346, "Quartermaster": None}, 
+    "VBP": {"name": "Roller Tonneau Cover", "Wagon": None, "Quartermaster": 2268}
+}
 
 
 
@@ -92,7 +117,7 @@ tools = [
                     "customer_intent": {
                         "type": "string",
                         "enum": ["commercial", "passenger"],
-                        "description": "Whether the vehicle is for commercial/utility or personal/passenger use."
+                        "description": "Whether the vehicle is for commercial/utility or personal/passenger/for themselves use."
                     },
                     "driving_environment": {
                         "type": "string",
@@ -179,26 +204,29 @@ tools = [
 
 
 def extract(user_message):
-    resp = groq_client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {"role": "system", "content":
-                "Call save_preferences with any car preferences the user states also use implications to tell what they're trying to say. "
+    try:
+        resp = groq_client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content":
+                    "Call save_preferences with anything they write, and try linking car preferences the user states also use implications to tell what they're trying to say. "
                 },
-            {"role": "user", "content": user_message},
-        ],
-        tools=tools,
-        tool_choice="auto", 
-        temperature=0.0,
-    )
+                {"role": "user", "content": user_message},
+            ],
+            tools=tools,
+            tool_choice="auto", 
+            temperature=0.0,
+        )
 
-    msg = resp.choices[0].message
+        msg = resp.choices[0].message
 
-    if msg.tool_calls:
-        boxes = json.loads(msg.tool_calls[0].function.arguments)
-        for key, value in boxes.items():
-            if key in slots and value:
-                slots[key] = value
+        if msg.tool_calls:
+            boxes = json.loads(msg.tool_calls[0].function.arguments)
+            for key, value in boxes.items():
+                if key in slots and value:
+                    slots[key] = value
+    except Exception as e:
+        print("Clarify?")
 
 
 
