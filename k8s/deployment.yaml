@@ -14,12 +14,13 @@ spec:
     spec:
       containers:
         - name: ineos-bot
-          image: ghcr.io/musobanakbar/ineos-grenadier-cs:latest
+          image: ineos-bot:latest
+          imagePullPolicy: Never
           ports:
             - containerPort: 7860
           env:
             - name: FILE_PATH
-              value: "ineos-price-summary.pdf"     # adjust to your data file
+              value: "data/ineos-price-summary.pdf"     # adjust to your data file
             - name: GROQ_API_KEY
               valueFrom:
                 secretKeyRef:

@@ -289,5 +289,5 @@ if __name__ == "__main__":
     description="Let's build your car.",
                           # soft, glass, monochrome
     examples=["I want a 5-seat off-roader"],
-    ).launch(theme="soft")      
+    ).launch(server_name="0.0.0.0", server_port=7860)      
 
