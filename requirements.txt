@@ -1,0 +1,8 @@
+gradio
+groq
+python-dotenv
+chromadb
+langchain-community
+langchain-text-splitters
+pypdf
+colorama==0.4.6

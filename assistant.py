@@ -1,6 +1,6 @@
 import os
 import json
-import gradio
+import gradio as gr
 from dotenv import load_dotenv
 from groq import Groq
 import chromadb
@@ -283,7 +283,7 @@ if __name__ == "__main__":
     collection = build_index(os.getenv("FILE_PATH"))
 
     print("Welcome to Ineos, let's find you a car.")
-    gradio.ChatInterface(
+    gr.ChatInterface(
     respond, 
     title="Ineos Salesbot",
     description="Let's build your car.",
