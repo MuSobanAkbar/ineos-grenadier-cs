@@ -25,11 +25,12 @@ jobs:
           python-version: "3.12"
 
       - run: pip install -r requirements.txt
-      - run: python -c "import assistant"   
-       - name: Smoke Test Import
-               env:
-                 GROQ_API_KEY: "mock_key_for_ci_build"
-               run: python -c "import assistant"
+      
+      # FIX: We inject a fake key here so the initialization doesn't crash the import
+      - name: Smoke Test Import
+        env:
+          GROQ_API_KEY: "mock_key_for_ci_build"
+        run: python -c "import assistant"   
 
       - uses: docker/setup-buildx-action@v3   
 
