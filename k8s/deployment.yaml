@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ineos-bot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ineos-bot
+  template:
+    metadata:
+      labels:
+        app: ineos-bot
+    spec:
+      containers:
+        - name: ineos-bot
+          image: ghcr.io/musobanakbar/ineos-grenadier-cs:latest
+          ports:
+            - containerPort: 7860
+          env:
+            - name: FILE_PATH
+              value: "ineos-price-summary.pdf"     # adjust to your data file
+            - name: GROQ_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: bot-secret
+                  key: GROQ_API_KEY
+          resources:                          # don't let it hog the node
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:                     # "is it ready for traffic?"
+            httpGet:
+              path: /
+              port: 7860
+            initialDelaySeconds: 20
+            periodSeconds: 10
