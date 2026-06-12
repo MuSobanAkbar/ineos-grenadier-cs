@@ -3,3 +3,7 @@ chroma_db/
 .env
 __pycache__/
 *.pyc
+terraform/.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
